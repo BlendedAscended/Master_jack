@@ -1033,16 +1033,24 @@ def run_health_server():
 
 
 if __name__ == "__main__":
-    import asyncio
+    import sys
 
-    # Capture the event loop so the HTTP thread can dispatch async work
-    loop = asyncio.new_event_loop()
-    _event_loop = loop
+    # Check if running in Docker (no tty = no stdin)
+    if os.environ.get("MCP_TRANSPORT", "stdio") == "sse" or not sys.stdin.isatty():
+        # SSE transport for Docker / server deployment
+        # Runs as HTTP server on port 8080
+        print("Starting MCP server with SSE transport on port 8080...")
+        mcp.run(transport="sse", host="0.0.0.0", port=8080)
+    else:
+        # stdio transport for local Claude Desktop
+        import asyncio
+        loop = asyncio.new_event_loop()
+        _event_loop = loop
 
-    def _start_mcp():
-        asyncio.set_event_loop(loop)
-        run_health_server()  # Start health check + webhook endpoint
-        mcp.run()
+        def _start_mcp():
+            asyncio.set_event_loop(loop)
+            run_health_server()
+            mcp.run()
 
-    _start_mcp()
+        _start_mcp()
 
