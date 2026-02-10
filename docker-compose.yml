@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  mcp-server:
+    build: ./mcp-server
+    container_name: titan-brain-mcp
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8080:8080"
+    networks:
+      - titan-brain-network
+      - agency-stack_default
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  discord-bot:
+    build: ./discord-bot
+    container_name: titan-brain-discord
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - mcp-server
+    networks:
+      - titan-brain-network
+      - agency-stack_default
+
+networks:
+  titan-brain-network:
+    driver: bridge
+  agency-stack_default:
+    external: true
