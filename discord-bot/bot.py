@@ -86,16 +86,17 @@ class TitanBot(commands.Bot):
         await message.add_reaction("🧠")
         
         try:
-            # Import MCP tools
-            import sys
-            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'mcp-server'))
-            from tools.second_brain import SecondBrainTools
-            
-            brain = SecondBrainTools()
-            
-            # Step 1: Classify the thought
-            classification = await brain.classify_thought(content)
-            
+            import aiohttp
+            MCP_URL = os.getenv("MCP_SERVER_URL", "http://titan-brain-mcp:8080")
+
+            async with aiohttp.ClientSession() as session:
+                # Step 1: Classify the thought
+                async with session.post(
+                    f"{MCP_URL}/webhook/n8n-trigger",
+                    json={"action": "classify_thought", "content": content}
+                ) as resp:
+                    classification = await resp.json()
+
             if not classification.get("success"):
                 await message.add_reaction("❌")
                 await message.channel.send(
@@ -103,22 +104,28 @@ class TitanBot(commands.Bot):
                     reference=message
                 )
                 return
-            
+
             category = classification.get("category", "Inbox")
             title = classification.get("title", content[:50])
             confidence = classification.get("confidence", 0)
             tags = classification.get("tags", [])
             priority = classification.get("priority", "medium")
-            
-            # Step 2: Route to Notion
-            routing = await brain.route_to_notion(
-                content=content,
-                category=category,
-                title=title,
-                tags=tags,
-                priority=priority
-            )
-            
+
+            async with aiohttp.ClientSession() as session:
+                # Step 2: Route to Notion
+                async with session.post(
+                    f"{MCP_URL}/webhook/n8n-trigger",
+                    json={
+                        "action": "route_to_notion",
+                        "content": content,
+                        "category": category,
+                        "title": title,
+                        "tags": tags,
+                        "priority": priority
+                    }
+                ) as resp:
+                    routing = await resp.json()
+
             if not routing.get("success"):
                 await message.add_reaction("⚠️")
                 await message.channel.send(
