@@ -1034,13 +1034,28 @@ def run_health_server():
 
 if __name__ == "__main__":
     import sys
+    import signal
 
     # Check if running in Docker (no tty = no stdin)
-    if os.environ.get("MCP_TRANSPORT", "stdio") == "sse" or not sys.stdin.isatty():
-        # SSE transport for Docker / server deployment
-        # Runs as HTTP server on port 8080
-        print("Starting MCP server with SSE transport on port 8080...")
-        mcp.run(transport="sse", host="0.0.0.0", port=8080)
+    if not sys.stdin.isatty():
+        # Docker / server mode: run HTTP webhook server as main process
+        # n8n communicates via HTTP webhooks, not MCP protocol
+        print("Starting Titan MCP webhook server on port 8080...")
+        print("Mode: Docker (HTTP webhooks for n8n integration)")
+
+        server = HTTPServer(("0.0.0.0", 8080), HealthHandler)
+
+        def shutdown(signum, frame):
+            print("Shutting down...")
+            server.shutdown()
+
+        signal.signal(signal.SIGTERM, shutdown)
+        signal.signal(signal.SIGINT, shutdown)
+
+        print("Webhook server ready at http://0.0.0.0:8080")
+        print("  Health: GET /health")
+        print("  Webhooks: POST /webhook/n8n-trigger")
+        server.serve_forever()
     else:
         # stdio transport for local Claude Desktop
         import asyncio
