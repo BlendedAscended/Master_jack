@@ -1035,6 +1035,10 @@ def run_health_server():
 if __name__ == "__main__":
     import sys
     import signal
+    import asyncio
+    import json
+    import threading
+    from http.server import HTTPServer, BaseHTTPRequestHandler
 
     # Check if running in Docker (no tty = no stdin)
     if not sys.stdin.isatty():
@@ -1043,11 +1047,101 @@ if __name__ == "__main__":
         print("Starting Titan MCP webhook server on port 8080...")
         print("Mode: Docker (HTTP webhooks for n8n integration)")
 
-        server = HTTPServer(("0.0.0.0", 8080), HealthHandler)
+        # Set up event loop for async tool calls
+        loop = asyncio.new_event_loop()
+        _event_loop = loop
+
+        # Run the event loop in a background thread
+        def run_loop():
+            asyncio.set_event_loop(loop)
+            loop.run_forever()
+
+        loop_thread = threading.Thread(target=run_loop, daemon=True)
+        loop_thread.start()
+
+        # Reuse the HealthHandler from run_health_server
+        # We need to define it here since it's scoped inside that function
+        class DockerHealthHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.path == "/health":
+                    self.send_response(200)
+                    self.send_header("Content-type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(b'{"status": "healthy", "service": "titan-mcp-server"}')
+                elif self.path == "/actions":
+                    self.send_response(200)
+                    self.send_header("Content-type", "application/json")
+                    self.end_headers()
+                    actions = {
+                        "workflow_1_job_monitor": [
+                            "get_jobs_needing_contacts",
+                            "discover_contacts_for_job",
+                            "save_contacts_to_airtable"
+                        ],
+                        "workflow_2_content_factory": ["generate_content_package"],
+                        "workflow_3_brain_dump": ["classify_thought", "route_to_notion"],
+                        "workflow_4_outreach": [
+                            "get_outreach_context", "generate_outreach", "generate_message"
+                        ],
+                        "workflow_5_network_mining": [
+                            "analyze_network_overlap", "get_active_jobs_for_network_mining"
+                        ],
+                        "utilities": ["get_job_details", "update_contact_status"]
+                    }
+                    self.wfile.write(json.dumps(actions, indent=2).encode())
+                else:
+                    self.send_response(404)
+                    self.end_headers()
+
+            def do_POST(self):
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length)
+                try:
+                    payload = json.loads(body) if body else {}
+                    if self.path == "/webhook/n8n-trigger":
+                        action = payload.get("action")
+                        if not action:
+                            self.send_response(400)
+                            self.send_header("Content-type", "application/json")
+                            self.end_headers()
+                            self.wfile.write(json.dumps({
+                                "success": False,
+                                "error": "Missing 'action' field"
+                            }).encode())
+                            return
+
+                        params = {k: v for k, v in payload.items() if k != "action"}
+                        future = asyncio.run_coroutine_threadsafe(
+                            _route_action(action, params), _event_loop
+                        )
+                        result = future.result(timeout=300)
+
+                        self.send_response(200)
+                        self.send_header("Content-type", "application/json")
+                        self.end_headers()
+                        self.wfile.write(json.dumps(result, default=str).encode())
+                    else:
+                        self.send_response(404)
+                        self.send_header("Content-type", "application/json")
+                        self.end_headers()
+                        self.wfile.write(b'{"error": "Endpoint not found"}')
+                except Exception as e:
+                    self.send_response(500)
+                    self.send_header("Content-type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({
+                        "success": False, "error": str(e),
+                        "error_type": type(e).__name__
+                    }).encode())
+
+            def log_message(self, format, *args):
+                pass
+
+        http_server = HTTPServer(("0.0.0.0", 8080), DockerHealthHandler)
 
         def shutdown(signum, frame):
             print("Shutting down...")
-            server.shutdown()
+            http_server.shutdown()
 
         signal.signal(signal.SIGTERM, shutdown)
         signal.signal(signal.SIGINT, shutdown)
@@ -1055,10 +1149,9 @@ if __name__ == "__main__":
         print("Webhook server ready at http://0.0.0.0:8080")
         print("  Health: GET /health")
         print("  Webhooks: POST /webhook/n8n-trigger")
-        server.serve_forever()
+        http_server.serve_forever()
     else:
         # stdio transport for local Claude Desktop
-        import asyncio
         loop = asyncio.new_event_loop()
         _event_loop = loop
 
@@ -1068,4 +1161,5 @@ if __name__ == "__main__":
             mcp.run()
 
         _start_mcp()
+
 
