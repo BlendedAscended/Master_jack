@@ -128,7 +128,8 @@ class NotionClient:
         title: str,
         properties: Optional[dict] = None,
         content_blocks: Optional[list] = None,
-        relations: Optional[dict] = None
+        relations: Optional[dict] = None,
+        title_property: str = "Name"
     ) -> dict:
         """
         Create a new page in a Notion database.
@@ -139,6 +140,7 @@ class NotionClient:
             properties: Additional properties to set
             content_blocks: List of block objects for page content
             relations: Dict mapping property names to page IDs for relations
+            title_property: The name of the title property (defaults to "Name")
         
         Returns:
             dict with created page info
@@ -152,7 +154,7 @@ class NotionClient:
         
         # Build properties
         page_properties = {
-            "Name": {
+            title_property: {
                 "title": [{"text": {"content": title}}]
             }
         }

@@ -108,14 +108,15 @@ class ContentEngine:
             database_key="content",
             title=f"Content: {source_title}",
             properties={
-                "Status": {"select": {"name": "Drafting"}},
-                "LinkedIn Draft": linkedin_draft[:2000],  # Truncate for property
-                "Video Script": video_script[:2000]       # Truncate for property
+                "Status": {"status": {"name": "Drafting"}},
+                "Linkedin Draft": linkedin_draft[:2000],  # Corrected casing
+                "Video Script": video_script[:2000]       # Casing match
             },
             content_blocks=content_blocks,
             relations={
                 "Source Material": [knowledge_uuid]  # Link back to source
-            }
+            },
+            title_property="Title" # Actual field name in DB
         )
         
         if not content_page.get("success"):
