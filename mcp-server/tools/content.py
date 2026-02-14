@@ -108,8 +108,8 @@ class ContentEngine:
             database_key="content",
             title=f"Content: {source_title}",
             properties={
-                "Status": {"status": {"name": "Drafting"}},
-                "Linkedin Draft": linkedin_draft[:2000],  # Corrected casing
+                "Status": {"status": {"name": "In progress"}}, # 'Drafting' failed, trying 'In progress'
+                "Linkedin Draft": linkedin_draft[:2000], 
                 "Video Script": video_script[:2000]       # Casing match
             },
             content_blocks=content_blocks,
