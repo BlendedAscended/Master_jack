@@ -770,7 +770,7 @@ async def _route_action(action: str, params: dict) -> dict:
         return await airtable.get_jobs_needing_contacts(status)
 
     elif action == "discover_contacts_for_job":
-        job_id = params.get("job_id")
+        job_id = str(params.get("job_id", "")).strip()
         limit = params.get("limit", 5)
         if not job_id:
             return {"success": False, "error": "job_id is required"}
@@ -816,6 +816,10 @@ async def _route_action(action: str, params: dict) -> dict:
         )
 
     # ---- Workflow 4: Outreach Message Generator ----
+    elif action == "get_contacts_ready_for_outreach":
+        statuses = params.get("statuses", ["Ready"])
+        return await airtable.get_contacts_ready_for_outreach(statuses)
+
     elif action == "get_outreach_context":
         contact_id = params.get("contact_id")
         if not contact_id:
@@ -900,6 +904,145 @@ async def _route_action(action: str, params: dict) -> dict:
             contact_id, status, params.get("fields")
         )
 
+    # ---- Additional Utilities (Added via Audit) ----
+    elif action == "find_company_contacts":
+        company_name = params.get("company_name")
+        job_title = params.get("job_title")
+        if not company_name or not job_title:
+             return {"success": False, "error": "company_name and job_title are required"}
+        return await apollo.find_contacts(company_name, job_title, params.get("limit", 5))
+
+    elif action == "scrape_job_location":
+        job_url = params.get("job_url")
+        if not job_url:
+             return {"success": False, "error": "job_url is required"}
+        return await apify.scrape_job_location(job_url)
+
+    elif action == "find_contacts_apify":
+        company = params.get("company")
+        job_position = params.get("job_position")
+        if not company or not job_position:
+             return {"success": False, "error": "company and job_position are required"}
+        return await apify.find_contacts(
+            company=company,
+            job_position=job_position,
+            job_description=params.get("job_description", ""),
+            location=params.get("location"),
+            limit=params.get("limit", 5)
+        )
+
+    elif action == "get_tailored_resume":
+        application_id = params.get("application_id")
+        if not application_id:
+             return {"success": False, "error": "application_id is required"}
+        return await resume.get_tailored_resume(application_id)
+
+    elif action == "get_cold_email":
+        application_id = params.get("application_id")
+        contact_type = params.get("contact_type")
+        if not application_id or not contact_type:
+             return {"success": False, "error": "application_id and contact_type are required"}
+        return await resume.get_cold_email(application_id, contact_type)
+
+    elif action == "check_skill_match":
+        job_description = params.get("job_description")
+        if not job_description:
+             return {"success": False, "error": "job_description is required"}
+        return await resume.check_skill_match(
+            job_description,
+            params.get("skill", "epic"),
+            params.get("application_id")
+        )
+
+    elif action == "generate_cold_connect_note":
+        return await outreach.generate_cold_connect_note(
+            contact_name=params.get("contact_name", ""),
+            contact_title=params.get("contact_title", ""),
+            contact_type=params.get("contact_type", ""),
+            company=params.get("company", ""),
+            job_title=params.get("job_title", ""),
+            job_description=params.get("job_description", ""),
+            cold_email_template=params.get("cold_email_template"),
+            resume_context=params.get("resume_context"),
+            resume_highlights=params.get("resume_highlights", "")
+        )
+
+    elif action == "generate_warm_dm":
+        return await outreach.generate_warm_dm(
+            contact_name=params.get("contact_name", ""),
+            company=params.get("company", ""),
+            target_role=params.get("target_role", ""),
+            connected_date=params.get("connected_date", ""),
+            contact_title=params.get("contact_title"),
+            contact_type=params.get("contact_type", "team_member"),
+            cold_email_template=params.get("cold_email_template"),
+            resume_context=params.get("resume_context"),
+            resume_highlights=params.get("resume_highlights")
+        )
+
+    elif action == "refine_message":
+        current_message = params.get("current_message")
+        edit_instruction = params.get("edit_instruction")
+        if not current_message or not edit_instruction:
+             return {"success": False, "error": "current_message and edit_instruction are required"}
+        return await outreach.refine_message(
+            current_message,
+            edit_instruction,
+            params.get("max_length"),
+            params.get("pipeline", "hunter")
+        )
+
+    elif action == "send_approval_request":
+        return await discord.send_approval(
+            contact_id=params.get("contact_id", ""),
+            contact_name=params.get("contact_name", ""),
+            contact_type=params.get("contact_type", ""),
+            company=params.get("company", ""),
+            job_title=params.get("job_title", ""),
+            linkedin_url=params.get("linkedin_url", ""),
+            message_draft=params.get("message_draft", ""),
+            connection_degree=params.get("connection_degree", "2nd"),
+            pipeline=params.get("pipeline", "hunter")
+        )
+
+    elif action == "wait_for_discord_response":
+        thread_id = params.get("thread_id")
+        if not thread_id:
+             return {"success": False, "error": "thread_id is required"}
+        return await discord.wait_for_response(
+            thread_id,
+            params.get("timeout_seconds", 300)
+        )
+
+    elif action == "send_discord_update":
+        thread_id = params.get("thread_id")
+        message = params.get("message")
+        if not thread_id or not message:
+             return {"success": False, "error": "thread_id and message are required"}
+        return await discord.send_message(thread_id, message)
+
+    elif action == "mark_contact_approved":
+        contact_id = params.get("contact_id")
+        final_message = params.get("final_message")
+        if not contact_id or not final_message:
+             return {"success": False, "error": "contact_id and final_message are required"}
+        # This implementation matches the tool logic which updates Airtable then returns struct with instrux
+        await airtable.mark_contact_approved(contact_id, final_message)
+        return {
+            "success": True,
+            "action": "approved",
+            "linkedin_url": params.get("linkedin_url", ""),
+            "message": final_message,
+            "instruction": "Open the LinkedIn URL and send the connection request with this message."
+        }
+
+    # ---- Second Brain Utilities ----
+    elif action == "process_chat_file":
+        file_content = params.get("file_content")
+        if not file_content:
+             return {"success": False, "error": "file_content is required"}
+        return await chat_ingest.process_chat_file(file_content, params.get("source_platform", "auto"))
+
     else:
         return {
             "success": False,
@@ -907,10 +1050,15 @@ async def _route_action(action: str, params: dict) -> dict:
             "available_actions": [
                 "get_jobs_needing_contacts", "discover_contacts_for_job",
                 "save_contacts_to_airtable", "generate_content_package",
-                "classify_thought", "route_to_notion",
-                "get_outreach_context", "generate_outreach", "generate_message",
+                "classify_thought", "route_to_notion", "process_chat_file",
+                "get_contacts_ready_for_outreach", "get_outreach_context", 
+                "generate_outreach", "generate_message", "generate_cold_connect_note",
+                "generate_warm_dm", "refine_message", "send_approval_request",
+                "wait_for_discord_response", "send_discord_update", "mark_contact_approved",
                 "analyze_network_overlap", "get_active_jobs_for_network_mining",
-                "get_job_details", "update_contact_status"
+                "get_job_details", "update_contact_status", "find_company_contacts",
+                "scrape_job_location", "find_contacts_apify", "get_tailored_resume",
+                "get_cold_email", "check_skill_match"
             ]
         }
 
@@ -945,12 +1093,21 @@ def run_health_server():
                     ],
                     "workflow_3_brain_dump": [
                         "classify_thought",
-                        "route_to_notion"
+                        "route_to_notion",
+                        "process_chat_file"
                     ],
                     "workflow_4_outreach": [
+                        "get_contacts_ready_for_outreach",
                         "get_outreach_context",
                         "generate_outreach",
-                        "generate_message"
+                        "generate_message",
+                        "generate_cold_connect_note",
+                        "generate_warm_dm",
+                        "refine_message",
+                        "send_approval_request",
+                        "wait_for_discord_response",
+                        "send_discord_update",
+                        "mark_contact_approved"
                     ],
                     "workflow_5_network_mining": [
                         "analyze_network_overlap",
@@ -958,7 +1115,13 @@ def run_health_server():
                     ],
                     "utilities": [
                         "get_job_details",
-                        "update_contact_status"
+                        "update_contact_status",
+                        "find_company_contacts",
+                        "scrape_job_location",
+                        "find_contacts_apify",
+                        "get_tailored_resume",
+                        "get_cold_email",
+                        "check_skill_match"
                     ]
                 }
                 self.wfile.write(json.dumps(actions, indent=2).encode())
