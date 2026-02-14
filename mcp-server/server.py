@@ -828,7 +828,16 @@ async def _route_action(action: str, params: dict) -> dict:
     # ---- Workflow 4: Outreach Message Generator ----
     elif action == "get_contacts_ready_for_outreach":
         statuses = params.get("statuses", ["Ready"])
-        return await airtable.get_contacts_ready_for_outreach(statuses)
+        
+        # Robust parsing for n8n stringified JSON
+        if isinstance(statuses, str):
+            try:
+                statuses = json.loads(statuses)
+            except json.JSONDecodeError:
+                # If specific status string passed, wrap in list
+                statuses = [statuses]
+                
+        return await airtable.get_contacts_ready_for_outreach(statuses=statuses)
 
     elif action == "get_outreach_context":
         contact_id = params.get("contact_id")
