@@ -83,7 +83,7 @@ async def main():
     # 2. Check Variables
     required_vars = [
         "AIRTABLE_API_KEY", "AIRTABLE_BASE_ID", 
-        "OPENAI_API_KEY", "APIFY_API_TOKEN"
+        "DEEPSEEK_API_KEY", "APIFY_API_TOKEN"
     ]
     
     missing_vars = []
