@@ -448,7 +448,12 @@ Return ONLY the JSON object, no explanation."""
         # Build the full query
         query_parts = [
             'site:linkedin.com/in/',
-            f'"{company}"'
+            f'"{company}"',
+             # Exclude former roles
+            '-intitle:"past"',
+            '-intitle:"former"',
+            '-intitle:"previous"',
+            f'"{company}"' # Repeat company to weight it higher
         ]
         
         if location and self._should_include_location(location):
