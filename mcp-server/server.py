@@ -783,10 +783,20 @@ async def _route_action(action: str, params: dict) -> dict:
     elif action == "save_contacts_to_airtable":
         job_id = params.get("job_id")
         contacts = params.get("contacts", [])
+        
+        # Robust parsing for n8n stringified JSON
+        if isinstance(contacts, str):
+            try:
+                contacts = json.loads(contacts)
+            except json.JSONDecodeError:
+                return {"success": False, "error": "contacts must be a list or valid JSON string"}
+                
         if not job_id:
             return {"success": False, "error": "job_id is required"}
         if not contacts:
-            return {"success": False, "error": "contacts list is required"}
+            # If empty list, just return success (nothing to save)
+            return {"success": True, "created_count": 0, "message": "No contacts to save"}
+            
         result = await airtable.save_contacts(job_id, contacts)
         if result.get("success"):
             await airtable.mark_contacts_found(job_id)
