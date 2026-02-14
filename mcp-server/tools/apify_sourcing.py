@@ -496,7 +496,8 @@ Return ONLY the JSON object, no explanation."""
         result: dict,
         contact_type: str,
         priority: int,
-        scraped_location: str
+        scraped_location: str,
+        company: str = ""
     ) -> Optional[dict]:
         """Parse a Google search result into contact schema."""
         url = result.get("url", "")
@@ -533,7 +534,8 @@ Return ONLY the JSON object, no explanation."""
             "contact_source": "apify_xray",
             "connection_degree": "2nd",
             "priority": priority,
-            "location_match": location_match
+            "location_match": location_match,
+            "company": company
         }
     
     def _clean_linkedin_url(self, url: str) -> Optional[str]:
@@ -655,7 +657,8 @@ Return ONLY the JSON object, no explanation."""
                         result,
                         contact_type=contact_type,
                         priority=priority,
-                        scraped_location=location
+                        scraped_location=location,
+                        company=company
                     )
                     if contact:
                         all_contacts.append(contact)
