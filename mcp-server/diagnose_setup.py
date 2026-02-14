@@ -41,7 +41,7 @@ async def check_airtable_schema(api_key, base_id):
         ],
         "Contacts": [
             "Name", "Title", "LinkedIn_URL", "Priority", 
-            "Job_Application", "Outreach_Status", "Contact_Type"
+            "Outreach_Status", "Company", "Job_Application", "Contact_Type"
         ]
     }
     
